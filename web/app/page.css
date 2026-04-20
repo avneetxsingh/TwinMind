@@ -1,3 +1,97 @@
+/* ── API Key Gate ──────────────────────────────────── */
+
+.key-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg);
+}
+
+.key-gate-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 40px 36px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow);
+}
+
+.key-gate-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.key-gate-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 0 0 24px;
+  line-height: 1.55;
+}
+
+.key-gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.key-gate-input {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  font-family: monospace;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.key-gate-input:focus {
+  border-color: var(--accent-border);
+}
+
+.key-gate-error {
+  font-size: 13px;
+  color: #dc2626;
+  margin: 0;
+}
+
+.key-gate-btn {
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.key-gate-btn:hover {
+  opacity: 0.85;
+}
+
+.key-gate-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 16px 0 0;
+  text-align: center;
+}
+
+.key-gate-hint a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.key-gate-hint a:hover {
+  text-decoration: underline;
+}
+
 /* ── Layout ────────────────────────────────────────── */
 
 .layout {
@@ -6,6 +100,33 @@
   height: 100vh;
   overflow: hidden;
   background: var(--bg);
+}
+
+/* ── Settings button ───────────────────────────────── */
+
+.settings-btn {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 50;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.settings-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
 }
 
 /* ── Shared pane shell ─────────────────────────────── */
@@ -55,6 +176,14 @@
 }
 
 /* ── Transcript pane ───────────────────────────────── */
+
+.recording-timer {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #dc2626;
+  letter-spacing: 0.03em;
+}
 
 .mic-btn {
   display: flex;

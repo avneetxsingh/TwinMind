@@ -6,10 +6,13 @@ import type { TranscriptChunk } from "@/lib/types";
 interface Props {
   chunks: TranscriptChunk[];
   isRecording: boolean;
+  recordingTime: number;
   onToggleRecording: () => void;
 }
 
-export default function TranscriptPane({ chunks, isRecording, onToggleRecording }: Props) {
+export default function TranscriptPane({ chunks, isRecording, recordingTime, onToggleRecording }: Props) {
+  const mins = Math.floor(recordingTime / 60);
+  const secs = String(recordingTime % 60).padStart(2, "0");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -19,10 +22,15 @@ export default function TranscriptPane({ chunks, isRecording, onToggleRecording 
   return (
     <div className="pane">
       <PaneHeader title="Transcript">
-        <button onClick={onToggleRecording} className={`mic-btn ${isRecording ? "active" : ""}`}>
-          {isRecording && <span className="mic-dot" />}
-          {isRecording ? "Stop" : "Start recording"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {isRecording && (
+            <span className="recording-timer">{mins}:{secs}</span>
+          )}
+          <button onClick={onToggleRecording} className={`mic-btn ${isRecording ? "active" : ""}`}>
+            {isRecording && <span className="mic-dot" />}
+            {isRecording ? "Stop" : "Start recording"}
+          </button>
+        </div>
       </PaneHeader>
 
       <div className="pane-body">
