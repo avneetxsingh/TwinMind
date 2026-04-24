@@ -6,7 +6,7 @@ import SuggestionsPane from "@/components/SuggestionsPane";
 import ChatPane from "@/components/ChatPane";
 import ApiKeyGate from "@/components/ApiKeyGate";
 import type { TranscriptChunk, SuggestionBatch, Suggestion, ChatMessage } from "@/lib/types";
-import { SUGGESTIONS_PROMPT } from "@/lib/prompts";
+import { SUGGESTIONS_PROMPT, CHAT_SYSTEM_PROMPT } from "@/lib/prompts";
 import "./page.css";
 
 export default function Page() {
@@ -24,6 +24,7 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
 
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -43,7 +44,22 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
       return;
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    setRecordingError(null);
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      const msg =
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "Microphone access denied. Please allow mic access and try again."
+          : err instanceof DOMException && err.name === "NotFoundError"
+          ? "No microphone found. Please connect one and try again."
+          : "Could not access microphone. Please check your browser settings.";
+      setRecordingError(msg);
+      return;
+    }
+
     streamRef.current = stream;
     startTimeRef.current = Date.now();
     isRecordingRef.current = true;
@@ -53,7 +69,20 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
     }, 1000);
 
     function runSegment() {
-      const recorder = new MediaRecorder(stream);
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch {
+        // Browser doesn't support MediaRecorder with this stream
+        isRecordingRef.current = false;
+        clearInterval(timerIntervalRef.current!);
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+        setRecordingTime(0);
+        setRecordingError("Your browser does not support audio recording. Try Chrome or Firefox.");
+        return;
+      }
+
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = async (e) => {
@@ -65,23 +94,38 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
         const formData = new FormData();
         formData.append("audio", e.data, "chunk.webm");
 
-        const res = await fetch("/api/transcribe", {
-          method: "POST",
-          headers: { "x-groq-key": apiKey },
-          body: formData,
-        });
-        if (!res.ok) return;
-        const { text } = await res.json();
-        if (!text?.trim()) return;
+        try {
+          const res = await fetch("/api/transcribe", {
+            method: "POST",
+            headers: { "x-groq-key": apiKey },
+            body: formData,
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          const text: string = data.text ?? "";
+          if (!text.trim()) return;
 
-        setChunks((prev) => [
-          ...prev,
-          { id: crypto.randomUUID(), timestamp: `${mins}:${secs}`, text: text.trim() },
-        ]);
+          setChunks((prev) => [
+            ...prev,
+            { id: crypto.randomUUID(), timestamp: `${mins}:${secs}`, text: text.trim() },
+          ]);
+        } catch {
+          // Network error or JSON parse failure — skip this chunk silently
+        }
       };
 
       recorder.onstop = () => {
         if (isRecordingRef.current) runSegment();
+      };
+
+      recorder.onerror = () => {
+        // MediaRecorder internal error — stop cleanly
+        isRecordingRef.current = false;
+        clearInterval(timerIntervalRef.current!);
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+        setRecordingTime(0);
+        setRecordingError("Recording stopped unexpectedly. Please try again.");
       };
 
       recorder.start();
@@ -117,26 +161,33 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
       });
 
       if (!res.ok) return;
-      const data = await res.json();
+
+      let data: Record<string, unknown>;
+      try {
+        data = await res.json();
+      } catch {
+        return; // Malformed JSON from API — skip silently
+      }
+
       if (!Array.isArray(data.suggestions)) return;
 
       const mins = Math.floor(recordingTime / 60);
       const secs = String(recordingTime % 60).padStart(2, "0");
 
       setBatches((prev) => [
-        { id: crypto.randomUUID(), timestamp: `${mins}:${secs}`, suggestions: data.suggestions },
+        { id: crypto.randomUUID(), timestamp: `${mins}:${secs}`, suggestions: data.suggestions as SuggestionBatch["suggestions"] },
         ...prev,
       ]);
+    } catch {
+      // Network error — fail silently, will retry on next chunk
     } finally {
       setIsRefreshing(false);
     }
   }, [isRefreshing, chunks, batches, apiKey, recordingTime]);
 
-  // Keep a ref so the auto-refresh interval always calls the latest handleRefresh
   const handleRefreshRef = useRef(handleRefresh);
   useEffect(() => { handleRefreshRef.current = handleRefresh; }, [handleRefresh]);
 
-  // Auto-refresh suggestions every time a new transcript chunk arrives (~30s)
   useEffect(() => {
     if (!isRecording || chunks.length === 0) return;
     handleRefreshRef.current();
@@ -156,39 +207,112 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), role, content }]);
   }
 
-  async function sendToChat(prompt: string) {
-    setIsChatLoading(true);
+  function handleExport() {
     try {
-      // TODO: POST /api/chat with prompt + full transcript context
-      void prompt;
-    } finally {
-      setIsChatLoading(false);
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        transcript: chunks.map((c) => ({ timestamp: c.timestamp, text: c.text })),
+        suggestions: batches.map((b) => ({
+          timestamp: b.timestamp,
+          suggestions: b.suggestions.map((s) => ({
+            type: s.type,
+            preview: s.preview,
+            detail_prompt: s.detail_prompt,
+          })),
+        })),
+        chat: messages.map((m) => ({ role: m.role, content: m.content })),
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `twinmind-session-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Export failed. Please try again.");
     }
   }
 
+  async function sendToChat(prompt: string) {
+    setIsChatLoading(true);
+    const fullTranscript = chunks.map((c) => `[${c.timestamp}] ${c.text}`).join("\n");
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-groq-key": apiKey,
+        },
+        body: JSON.stringify({
+          prompt,
+          full_transcript: fullTranscript,
+          system_prompt: CHAT_SYSTEM_PROMPT,
+        }),
+      });
+
+      if (!res.ok || !res.body) throw new Error("Chat request failed");
+
+      setIsChatLoading(false);
+      const assistantId = crypto.randomUUID();
+      setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + chunk } : m))
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setIsChatLoading(false);
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: "assistant", content: "Failed to get a response. Please try again." },
+      ]);
+    }
+  }
 
   return (
-    <div className="layout">
-      <button className="settings-btn" onClick={onReset} title="Change API key">
-        ⚙
-      </button>
-      <TranscriptPane
-        chunks={chunks}
-        isRecording={isRecording}
-        recordingTime={recordingTime}
-        onToggleRecording={toggleRecording}
-      />
-      <SuggestionsPane
-        batches={batches}
-        isRefreshing={isRefreshing}
-        onRefresh={handleRefresh}
-        onSuggestionClick={handleSuggestionClick}
-      />
-      <ChatPane
-        messages={messages}
-        isLoading={isChatLoading}
-        onSend={handleChatSend}
-      />
+    <div className="app-wrapper">
+      <header className="app-header">
+        <span className="app-header-title">TwinMind — Live Suggestions Web App</span>
+        <div className="app-header-center">
+          <button className="export-btn" onClick={handleExport}>↓ Export session</button>
+          <button className="settings-btn" onClick={onReset}>⚙ Groq API Key</button>
+        </div>
+        <span className="app-header-nav">3-column layout · Transcript · Live Suggestions · Chat</span>
+      </header>
+
+      <div className="layout">
+        <TranscriptPane
+          chunks={chunks}
+          isRecording={isRecording}
+          recordingTime={recordingTime}
+          onToggleRecording={toggleRecording}
+          error={recordingError}
+        />
+        <SuggestionsPane
+          batches={batches}
+          isRefreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          onSuggestionClick={handleSuggestionClick}
+        />
+        <ChatPane
+          messages={messages}
+          isLoading={isChatLoading}
+          onSend={handleChatSend}
+        />
+      </div>
     </div>
   );
 }

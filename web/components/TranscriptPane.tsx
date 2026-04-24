@@ -8,9 +8,10 @@ interface Props {
   isRecording: boolean;
   recordingTime: number;
   onToggleRecording: () => void;
+  error: string | null;
 }
 
-export default function TranscriptPane({ chunks, isRecording, recordingTime, onToggleRecording }: Props) {
+export default function TranscriptPane({ chunks, isRecording, recordingTime, onToggleRecording, error }: Props) {
   const mins = Math.floor(recordingTime / 60);
   const secs = String(recordingTime % 60).padStart(2, "0");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -21,21 +22,45 @@ export default function TranscriptPane({ chunks, isRecording, recordingTime, onT
 
   return (
     <div className="pane">
-      <PaneHeader title="Transcript">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {isRecording && (
+      <div className="pane-header">
+        <h2 className="pane-title">1. Mic &amp; Transcript</h2>
+        <span className="pane-badge">
+          {isRecording ? (
             <span className="recording-timer">{mins}:{secs}</span>
+          ) : (
+            "Idle"
           )}
-          <button onClick={onToggleRecording} className={`mic-btn ${isRecording ? "active" : ""}`}>
-            {isRecording && <span className="mic-dot" />}
-            {isRecording ? "Stop" : "Start recording"}
-          </button>
-        </div>
-      </PaneHeader>
+        </span>
+      </div>
 
       <div className="pane-body">
+        <div className="mic-circle-row">
+          <button
+            onClick={onToggleRecording}
+            className={`mic-circle ${isRecording ? "active" : ""}`}
+            title={isRecording ? "Stop recording" : "Start recording"}
+          >
+            <span className="mic-circle-dot" />
+          </button>
+          <span className="mic-circle-label">
+            {isRecording
+              ? "Recording… click to stop."
+              : "Click mic to start. Transcript appends every ~30s."}
+          </span>
+        </div>
+
+        {error && (
+          <p className="recording-error">{error}</p>
+        )}
+
         {chunks.length === 0 ? (
-          <p className="empty-state">Press "Start recording" to begin.</p>
+          <>
+            <div className="desc-card">
+              The transcript scrolls and appends new chunks every ~30 seconds while recording.
+              Use the mic button to start/stop.
+            </div>
+            <p className="empty-state">No transcript yet — start the mic.</p>
+          </>
         ) : (
           chunks.map((chunk) => (
             <div key={chunk.id} className="transcript-chunk">
@@ -46,15 +71,6 @@ export default function TranscriptPane({ chunks, isRecording, recordingTime, onT
         )}
         <div ref={bottomRef} />
       </div>
-    </div>
-  );
-}
-
-function PaneHeader({ title, children }: { title: string; children?: React.ReactNode }) {
-  return (
-    <div className="pane-header">
-      <h2 className="pane-title">{title}</h2>
-      {children}
     </div>
   );
 }

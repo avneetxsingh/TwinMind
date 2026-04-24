@@ -20,17 +20,30 @@ interface Props {
 
 export default function SuggestionsPane({ batches, isRefreshing, onRefresh, onSuggestionClick }: Props) {
   return (
-    <div className="pane border-x">
+    <div className="pane">
       <div className="pane-header">
-        <h2 className="pane-title">Suggestions</h2>
-        <button onClick={onRefresh} disabled={isRefreshing} className="refresh-btn">
-          {isRefreshing ? "Refreshing…" : "↻ Refresh"}
-        </button>
+        <h2 className="pane-title">2. Live Suggestions</h2>
+        <span className="pane-badge">{batches.length} Batches</span>
       </div>
 
       <div className="pane-body">
+        <div className="refresh-row">
+          <button onClick={onRefresh} disabled={isRefreshing} className="refresh-btn">
+            {isRefreshing ? "Refreshing…" : "↻ Reload suggestions"}
+          </button>
+          <span className="auto-refresh-hint">auto-refresh in 30s</span>
+        </div>
+
         {batches.length === 0 ? (
-          <p className="empty-state">Suggestions will appear once the transcript starts.</p>
+          <>
+            <div className="desc-card">
+              On reload (or auto every ~30s), generate 3 fresh suggestions from recent transcript context.
+              New batch appears at the top; older batches push down. Each is a tappable card —
+              a question to ask, a talking point, an answer, or a fact-check.
+              The preview alone should already be useful.
+            </div>
+            <p className="empty-state">Suggestions appear here once recording starts.</p>
+          </>
         ) : (
           batches.map((batch, i) => (
             <div key={batch.id} className="batch">

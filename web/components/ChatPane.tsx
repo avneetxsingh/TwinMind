@@ -27,12 +27,20 @@ export default function ChatPane({ messages, isLoading, onSend }: Props) {
   return (
     <div className="pane">
       <div className="pane-header">
-        <h2 className="pane-title">Chat</h2>
+        <h2 className="pane-title">3. Chat (Detailed Answers)</h2>
+        <span className="pane-badge">Session-only</span>
       </div>
 
       <div className="chat-messages">
         {messages.length === 0 && (
-          <p className="empty-state">Click a suggestion or ask a question.</p>
+          <>
+            <div className="desc-card">
+              Clicking a suggestion adds it to this chat and streams a detailed answer
+              (separate prompt, more context). You can also type questions directly.
+              One continuous chat per session — no login, no persistence.
+            </div>
+            <p className="empty-state">Click a suggestion or type a question below.</p>
+          </>
         )}
         {messages.map((msg) => (
           <div key={msg.id} className={`message ${msg.role}`}>
@@ -51,7 +59,7 @@ export default function ChatPane({ messages, isLoading, onSend }: Props) {
         <input
           className="chat-input"
           type="text"
-          placeholder="Ask anything about this conversation…"
+          placeholder="Ask anything…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
