@@ -5,8 +5,8 @@ import TranscriptPane from "@/components/TranscriptPane";
 import SuggestionsPane from "@/components/SuggestionsPane";
 import ChatPane from "@/components/ChatPane";
 import ApiKeyGate from "@/components/ApiKeyGate";
+import SettingsDrawer, { DEFAULT_SETTINGS, type Settings } from "@/components/SettingsDrawer";
 import type { TranscriptChunk, SuggestionBatch, Suggestion, ChatMessage } from "@/lib/types";
-import { SUGGESTIONS_PROMPT, CHAT_SYSTEM_PROMPT } from "@/lib/prompts";
 import "./page.css";
 
 export default function Page() {
@@ -25,6 +25,8 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [showSettings, setShowSettings] = useState(false);
 
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -73,7 +75,6 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
       try {
         recorder = new MediaRecorder(stream);
       } catch {
-        // Browser doesn't support MediaRecorder with this stream
         isRecordingRef.current = false;
         clearInterval(timerIntervalRef.current!);
         stream.getTracks().forEach((t) => t.stop());
@@ -119,7 +120,6 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
       };
 
       recorder.onerror = () => {
-        // MediaRecorder internal error — stop cleanly
         isRecordingRef.current = false;
         clearInterval(timerIntervalRef.current!);
         stream.getTracks().forEach((t) => t.stop());
@@ -143,7 +143,10 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
     setIsRefreshing(true);
     try {
       const full_transcript = chunks.map((c) => `[${c.timestamp}] ${c.text}`).join("\n");
-      const recent_transcript = chunks.slice(-2).map((c) => `[${c.timestamp}] ${c.text}`).join("\n");
+      const recent_transcript = chunks
+        .slice(-settings.recentChunks)
+        .map((c) => `[${c.timestamp}] ${c.text}`)
+        .join("\n");
       const lastBatch = batches[0];
       const last_suggestions = lastBatch
         ? lastBatch.suggestions.map((s) => `[${s.type}] ${s.preview}`).join("\n")
@@ -156,7 +159,7 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
           full_transcript,
           recent_transcript,
           last_suggestions,
-          system_prompt: SUGGESTIONS_PROMPT,
+          system_prompt: settings.suggestionsPrompt,
         }),
       });
 
@@ -166,7 +169,7 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
       try {
         data = await res.json();
       } catch {
-        return; // Malformed JSON from API — skip silently
+        return;
       }
 
       if (!Array.isArray(data.suggestions)) return;
@@ -183,7 +186,7 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing, chunks, batches, apiKey, recordingTime]);
+  }, [isRefreshing, chunks, batches, apiKey, recordingTime, settings.recentChunks, settings.suggestionsPrompt]);
 
   const handleRefreshRef = useRef(handleRefresh);
   useEffect(() => { handleRefreshRef.current = handleRefresh; }, [handleRefresh]);
@@ -239,7 +242,8 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
 
   async function sendToChat(prompt: string) {
     setIsChatLoading(true);
-    const fullTranscript = chunks.map((c) => `[${c.timestamp}] ${c.text}`).join("\n");
+    const contextChunks = settings.chatChunks === 0 ? chunks : chunks.slice(-settings.chatChunks);
+    const fullTranscript = contextChunks.map((c) => `[${c.timestamp}] ${c.text}`).join("\n");
 
     try {
       const res = await fetch("/api/chat", {
@@ -251,7 +255,7 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
         body: JSON.stringify({
           prompt,
           full_transcript: fullTranscript,
-          system_prompt: CHAT_SYSTEM_PROMPT,
+          system_prompt: settings.chatSystemPrompt,
         }),
       });
 
@@ -288,7 +292,7 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
         <span className="app-header-title">TwinMind — Live Suggestions Web App</span>
         <div className="app-header-center">
           <button className="export-btn" onClick={handleExport}>↓ Export session</button>
-          <button className="settings-btn" onClick={onReset}>⚙ Groq API Key</button>
+          <button className="settings-btn" onClick={() => setShowSettings(true)}>⚙ Settings</button>
         </div>
         <span className="app-header-nav">3-column layout · Transcript · Live Suggestions · Chat</span>
       </header>
@@ -313,6 +317,15 @@ function App({ apiKey, onReset }: { apiKey: string; onReset: () => void }) {
           onSend={handleChatSend}
         />
       </div>
+
+      {showSettings && (
+        <SettingsDrawer
+          settings={settings}
+          onUpdate={setSettings}
+          onClose={() => setShowSettings(false)}
+          onResetApiKey={() => { setShowSettings(false); onReset(); }}
+        />
+      )}
     </div>
   );
 }
