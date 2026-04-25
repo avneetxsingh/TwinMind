@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { Suggestion, SuggestionBatch } from "@/lib/types";
 
 const TYPE_LABEL: Record<Suggestion["type"], string> = {
@@ -19,6 +20,14 @@ interface Props {
 }
 
 export default function SuggestionsPane({ batches, isRefreshing, onRefresh, onSuggestionClick }: Props) {
+  const [clicked, setClicked] = useState<Set<string>>(new Set());
+
+  function handleClick(s: Suggestion, key: string) {
+    if (clicked.has(key)) return; // prevent duplicate chat entries
+    setClicked((prev) => new Set(prev).add(key));
+    onSuggestionClick(s);
+  }
+
   return (
     <div className="pane">
       <div className="pane-header">
@@ -48,12 +57,24 @@ export default function SuggestionsPane({ batches, isRefreshing, onRefresh, onSu
           batches.map((batch, i) => (
             <div key={batch.id} className="batch">
               <p className="batch-label">{i === 0 ? `Latest · ${batch.timestamp}` : batch.timestamp}</p>
-              {batch.suggestions.map((s, j) => (
-                <button key={j} className="suggestion-card" onClick={() => onSuggestionClick(s)}>
-                  <span className="suggestion-type">{TYPE_LABEL[s.type]}</span>
-                  <p className="suggestion-preview">{s.preview}</p>
-                </button>
-              ))}
+              {batch.suggestions.map((s, j) => {
+                const key = `${batch.id}-${j}`;
+                const isClicked = clicked.has(key);
+                return (
+                  <button
+                    key={j}
+                    className={`suggestion-card ${isClicked ? "clicked" : ""}`}
+                    onClick={() => handleClick(s, key)}
+                    title={isClicked ? "Already sent to chat" : undefined}
+                  >
+                    <span className="suggestion-type">
+                      {TYPE_LABEL[s.type]}
+                      {isClicked && <span className="suggestion-check"> ✓</span>}
+                    </span>
+                    <p className="suggestion-preview">{s.preview}</p>
+                  </button>
+                );
+              })}
             </div>
           ))
         )}

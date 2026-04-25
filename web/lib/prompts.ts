@@ -64,6 +64,9 @@ FACT_CHECK PREVIEW RULE:
 Only reference claims actually made in the transcript.
 Never invent statistics or research not mentioned.
 If you fact-check, use only what was actually said.
+NEVER invent statistics, percentages, or survey results
+not present in the transcript. If no data exists,
+skip the statistic entirely.
 
 [CLARIFICATION]
 Clear up confusion or define something ambiguous.

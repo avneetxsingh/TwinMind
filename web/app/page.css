@@ -393,6 +393,21 @@
   box-shadow: var(--shadow);
 }
 
+.suggestion-card.clicked {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.suggestion-card.clicked:hover {
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.suggestion-check {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .suggestion-type {
   display: block;
   font-size: 10px;
