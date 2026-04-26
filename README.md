@@ -147,6 +147,9 @@ Change the prompts live during a session and the next
 refresh uses your edits immediately. Reset to defaults
 restores all fields to the optimal values.
 
+<img width="499" height="810" alt="image" src="https://github.com/user-attachments/assets/e91a28be-a485-4e9a-a982-6421ebacb3fd" />
+
+
 ---
 
 ## Running locally
