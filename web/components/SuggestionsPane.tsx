@@ -40,7 +40,7 @@ export default function SuggestionsPane({ batches, isRefreshing, onRefresh, onSu
           <button onClick={onRefresh} disabled={isRefreshing} className="refresh-btn">
             {isRefreshing ? "Refreshing…" : "↻ Reload suggestions"}
           </button>
-          <span className="auto-refresh-hint">auto-refresh in 30s</span>
+          <span className="auto-refresh-hint">auto-refreshes with transcript</span>
         </div>
 
         {batches.length === 0 ? (
