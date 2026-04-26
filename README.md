@@ -1,82 +1,165 @@
-# TwinMind Live Suggestions — Engineering Challenge
+# TwinMind Copilot
 
-A real-time meeting copilot that listens to your conversation and surfaces exactly 3 contextually-appropriate suggestions per batch. Built as a TwinMind engineering challenge submission.
+A real-time AI meeting copilot that actually pays attention
+so you don't have to.
 
-> *"What if your meeting assistant actually paid attention to the meeting?"*
-
----
-
-## What It Does
-
-The app runs as a three-column interface in your browser:
-
-| Column | What it does |
-|--------|-------------|
-| **Mic & Transcript** | Captures your microphone in 30-second segments, transcribes each one via Groq Whisper, and appends it to a live scrolling transcript |
-| **Live Suggestions** | After each new transcript chunk, runs the routing prompt and surfaces 3 fresh suggestions — fact-checks, clarifications, talking points, answers, questions, or action items depending on what's actually happening |
-| **Chat** | Click any suggestion for a deep-dive answer with full transcript context, or type your own question. Streams the response in real time |
+🔗 **Live demo:** https://2winmind.vercel.app
 
 ---
 
-## The Core Idea: Routing Prompt Architecture
+## What is this?
 
-TwinMind's default behavior suggests questions. Just questions. Every batch, regardless of what's happening in the conversation.
+You're in a meeting. Someone says something smart.
+Someone says something wrong. Someone asks a question
+nobody answers. And you're just sitting there nodding.
 
-After two live research sessions deliberately triggering different conversation moments, five specific weaknesses were identified and used to design a better system:
+This app fixes that. It listens to your meeting in real
+time, transcribes everything, and every 30 seconds surfaces
+3 suggestions that are actually useful — not generic garbage
+like "consider asking a follow-up question."
 
-```
-MAIN PROMPT (the router)
-├── Detects meeting PHASE: OPENING → MIDDLE → CLOSING
-├── Detects moment TYPE: CLAIM | QUESTION | CONFUSION | DECISION | GENERAL
-└── Routes suggestion selection based on both signals
-```
+Three columns. No login. No fluff.
 
-This means the app never falls back to generic questions. When someone makes a bold claim, it surfaces a fact-check. When confusion is expressed, it clarifies. When the meeting is wrapping up, it locks in action items. **The suggestions match what's actually happening.**
-
-### The 6 Suggestion Types
-
-| Type | When it fires |
-|------|--------------|
-| `FACT_CHECK` | A specific claim or statistic was just made |
-| `ANSWER` | A question was asked and hasn't been answered yet |
-| `CLARIFICATION` | Confusion or misalignment was expressed |
-| `TALKING_POINT` | Decision being made, or mid-meeting context |
-| `QUESTION` | Max 1 per batch — prioritized in opening phase |
-| `ACTION_ITEM` | Closing phase only — always included when detected |
-
-**Hard constraints:** Never 3 of the same type. Max 1 `QUESTION` per batch. Always mix ≥2 types. Previews must deliver the actual insight in under 40 words — not a pointer to it.
+- **Left** — Live transcript of everything being said
+- **Middle** — 3 AI suggestion cards, refreshed every 30s
+- **Right** — Chat panel for deeper answers
 
 ---
 
-## Tech Stack
+## Before I wrote a single line of code
 
-- **Frontend:** Next.js 16, React 19, TypeScript
-- **Transcription:** Groq Whisper (`whisper-large-v3`) via API route
-- **Suggestions & Chat:** Groq chat completions, streaming via `ReadableStream`
-- **Auth:** Your Groq API key, stored in `localStorage`. Never touches a server beyond forwarding to Groq.
-- **Persistence:** None. Session lives in memory. Export when done.
+I actually downloaded TwinMind and used it. Ran two full
+fake meeting sessions with ChatGPT on my laptop, Gemini
+on my phone, and TwinMind on my iPad listening to both.
+
+Here's what I found:
+
+TwinMind defaults to questions. Every. Single. Batch.
+Didn't matter if someone made a bold claim, expressed
+confusion, or forced a decision — it asked a question.
+Three questions. Every time.
+
+Five confirmed weaknesses:
+
+| Weakness | What it means |
+|---|---|
+| Defaults to questions | No variety regardless of context |
+| Misses fact-check moments | Bold claims go unchallenged |
+| Misses clarification moments | Confusion is ignored |
+| No stage awareness | Wrong suggestions at wrong time |
+| Generic previews | Could apply to any meeting ever |
+
+So I built something that actually reads the room.
 
 ---
 
-## Getting Started
+## Prompt Strategy
 
-**Prerequisites:** Node.js 18+, a [Groq API key](https://console.groq.com) (free tier works fine)
+This is the part I'm most proud of and honestly the
+whole point of the assignment.
+
+Instead of one flat prompt that says "give 3 suggestions"
+(which is what produces generic garbage), I built a
+structured reasoning prompt that does three things in
+one pass:
+
+**Step 1 — Read the room**
+Detects where in the conversation we are:
+- OPENING: topic just introduced
+- MIDDLE: substance happening
+- CLOSING: wrapping up, action items
+
+**Step 2 — Detect the moment**
+Reads the last ~60 seconds specifically (last 2 transcript chunks):
+- CLAIM → must surface a FACT_CHECK
+- QUESTION → must surface an ANSWER
+- CONFUSION → must surface a CLARIFICATION
+- DECISION → must surface a TALKING_POINT
+- CLOSING → must surface an ACTION_ITEM
+
+**Step 3 — Enforce variety**
+Hard rules baked into the prompt:
+- Maximum 1 QUESTION per batch
+- Never 3 of the same type
+- Preview must contain the actual insight,
+  not a pointer to it
+
+The preview rule is what separates this from TwinMind.
+
+A bad preview: "Consider fact-checking this statistic"
+
+A good preview: "The 90% failure stat is overstated —
+fitness app churn is driven by poor onboarding, not
+lack of personalization"
+
+Value without clicking. That was the goal.
+
+**Why one prompt instead of chaining multiple?**
+Latency. Groq is fast but not free-API-calls fast.
+One well-structured prompt on GPT-OSS 120B outperforms
+a poorly structured multi-prompt system every time.
+The intelligence lives in the instructions, not the
+architecture.
+
+---
+
+## Stack
+
+| Thing | Choice | Why |
+|---|---|---|
+| Framework | Next.js 16.2 + TypeScript | One codebase, API routes built in, one Vercel deploy |
+| Styling | Custom CSS (`page.css`) | Single file, full control, no framework overhead |
+| Transcription | Groq Whisper Large V3 | Required by spec, genuinely fast |
+| Suggestions + Chat | Groq GPT-OSS 120B | Required by spec |
+| Deployment | Vercel | Git push to deploy |
+
+No database. No login. No unnecessary complexity.
+The assignment said don't over-engineer. I listened.
+
+---
+
+## How the API key works
+
+You paste your own Groq key in the settings screen.
+It lives in your browser only. Never touches a server
+as a stored secret. Every API call sends it as an
+`x-groq-key` header. Get a free key at console.groq.com.
+
+---
+
+## Settings
+
+Click ⚙ Settings in the header to open the settings panel.
+Everything is editable at runtime:
+
+| Field | Default |
+|---|---|
+| Suggestions prompt | Optimized v3 routing prompt |
+| Chat system prompt | Meeting copilot system prompt |
+| Recent context window | 2 chunks (~60s of "right now") |
+| Chat context window | 0 = full transcript sent with answers |
+
+Change the prompts live during a session and the next
+refresh uses your edits immediately. Reset to defaults
+restores all fields to the optimal values.
+
+---
+
+## Running locally
 
 ```bash
-cd web
+git clone https://github.com/avneetxsingh/TwinMind
+cd TwinMind/web
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), paste your Groq key (`gsk_...`) when prompted, and hit the mic button.
-
-The key is stored in `localStorage` — you won't have to paste it every time. To reset it, click **⚙ Groq API Key** in the header.
-
-No `.env` file needed. No backend setup. No database. Just the key and a conversation.
+Open http://localhost:3000, paste your Groq API key (`gsk_...`),
+start talking.
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 web/
@@ -89,6 +172,7 @@ web/
 │   └── page.css                  # All styles (single file, intentional)
 ├── components/
 │   ├── ApiKeyGate.tsx            # Key entry + localStorage persistence
+│   ├── SettingsDrawer.tsx        # Runtime-editable prompts + context windows
 │   ├── TranscriptPane.tsx        # Left column
 │   ├── SuggestionsPane.tsx       # Middle column
 │   └── ChatPane.tsx              # Right column
@@ -96,49 +180,24 @@ web/
     ├── groq.ts                   # Groq client factory
     ├── prompts.ts                # SUGGESTIONS_PROMPT (v3) + CHAT_SYSTEM_PROMPT
     └── types.ts                  # Shared TypeScript types
-
-docs/
-├── Prompts/
-│   ├── v1.md                     # Baseline prompt
-│   ├── v2.md                     # + deduplication via last_suggestions
-│   └── v3.md                     # + ACTION_ITEM, 40-word cap, stricter rules
-└── daily/
-    └── Day1.md                   # Research sessions, TwinMind weaknesses, architecture decision
 ```
-
----
-
-## How the Suggestion Pipeline Works
-
-Every ~30 seconds (or when you click Reload), the app sends three things to `/api/suggestions`:
-
-- **`full_transcript`** — the entire conversation so far, timestamped
-- **`recent_transcript`** — the last 2 chunks (~60s), for recency weighting
-- **`last_suggestions`** — what was just shown, so the model doesn't repeat itself
-
-The prompt runs in JSON mode and returns `detected_part`, `detected_moment`, and `suggestions[]`. The frontend validates the shape and prepends the new batch to the top of the middle column.
-
-When a suggestion is clicked, its `detail_prompt` (generated alongside the preview) goes to `/api/chat` with the full transcript as context — a separate, longer-form streaming response.
-
----
-
-## Prompt Versions
-
-Three iterations live in `docs/Prompts/`:
-
-- **v1** — Baseline. Works, but no deduplication and no action items.
-- **v2** — Added `{last_suggestions}` to stop the model from recycling the same three suggestions every 30 seconds. (It was doing that. Enthusiastically.)
-- **v3** — Current. Added `ACTION_ITEM` for closing phase, enforced 40-word preview cap, tightened fact-check to only fire on claims actually in the transcript. Never invents statistics. Never hallucinates local support organizations. Mostly behaves.
 
 ---
 
 ## Export
 
-Hit **↓ Export session** in the header at any point. Downloads a timestamped JSON file with the full transcript, every suggestion batch, and the complete chat history.
+Hit **↓ Export session** in the header at any point to download
+a JSON file with:
+- Full transcript with timestamps
+- Every suggestion batch with timestamps and types
+- Full chat history
+
+TwinMind evaluates submissions using this export.
+So I made sure it's clean.
 
 ```json
 {
-  "exportedAt": "2026-04-21T...",
+  "exportedAt": "2026-04-25T...",
   "transcript": [{ "timestamp": "0:30", "text": "..." }],
   "suggestions": [{ "timestamp": "0:30", "suggestions": [...] }],
   "chat": [{ "role": "user", "content": "..." }, ...]
@@ -147,25 +206,26 @@ Hit **↓ Export session** in the header at any point. Downloads a timestamped J
 
 ---
 
-## Design Decisions Worth Noting
+## Tradeoffs
 
-**Why one API call instead of two?** Routing and suggestion selection happen in the same prompt. A second call would add latency and complexity for marginal gains. The model handles both in one shot cleanly.
+**One prompt vs prompt chaining**
+Chaining would give marginally better separation of concerns
+but adds latency and complexity. One well-structured prompt
+on GPT-OSS 120B handles phase detection, moment detection,
+and suggestion selection cleanly in a single pass.
 
-**Why 30-second segments?** It's the sweet spot between latency and transcription accuracy. Very short silences produce empty chunks, which are dropped. Very long segments delay the feedback loop.
+**~60 second recent context window**
+Audio chunks every 30 seconds. The recent window sends the
+last 2 chunks (~60s) to weight "right now" more heavily than
+the full transcript. The prompt instructs the model to treat
+claims and questions within this window as the active trigger —
+anything older is background context only.
 
-**Why no backend, no database?** None of it is needed. The Groq key lives in the browser. The session lives in memory. The export button is the persistence layer. Keeping the stack minimal means the prompt engineering stays the focus — which is the point.
-
----
-
-## Commands
-
-All from `web/`:
-
-```bash
-npm run dev      # Dev server → localhost:3000
-npm run build    # Production build
-npm run lint     # ESLint
-```
+**No streaming on suggestions**
+Suggestions return as a single JSON object. Streaming partial
+JSON isn't worth the parsing complexity. Chat streams because
+that feels responsive. Suggestions don't because the whole
+batch lands at once anyway.
 
 ---
 
