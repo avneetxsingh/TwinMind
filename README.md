@@ -24,7 +24,8 @@ Three columns. No login. No fluff.
 - **Middle** — 3 AI suggestion cards, refreshed every 30s
 - **Right** — Chat panel for deeper answers
 
-<img width="1470" height="956" alt="image" src="https://github.com/user-attachments/assets/6cbc3e4d-a2ad-4374-9bac-3ad64197a40b" />
+<img width="1470" height="809" alt="image" src="https://github.com/user-attachments/assets/1742537b-998a-4205-b20a-12040cfdfb3c" />
+
 
 
 ---
